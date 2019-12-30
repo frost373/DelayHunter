@@ -1,4 +1,4 @@
-package top.thinkin.delayhunter;
+package top.thinkin.delayclient;
 
 import com.codahale.metrics.ConsoleReporter;
 import com.codahale.metrics.Meter;
@@ -8,6 +8,7 @@ import okhttp3.*;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -29,12 +30,14 @@ class Test {
 
     public static void main(String[] args) {
         String url = args[0];
-        contextLoads( url);
+        String max = args[1];
+        contextLoads( url,max);
     }
-     static void contextLoads(String urlx) {
+    static void contextLoads(String urlx,String max) {
         startReport();
-
-        String url = "http://"+urlx+"/add";
+        client.dispatcher().setMaxRequestsPerHost(Integer.parseInt(max));
+        client.dispatcher().setMaxRequests(Integer.parseInt(max));
+        String url = "http://"+urlx+"";
 
         for (int i = 0; i < 100 * 10000; i++) {
             handle(url);
@@ -43,11 +46,12 @@ class Test {
     }
 
     private static void handle(String url) {
+        Random r = new Random(1);
         RequestBody body = RequestBody.create("{\n" +
                 "    \"id\": \""+ UUID.randomUUID().toString() +"\",\n" +
                 "    \"data\": \"{\\\"task\\\":\\\"do "+ UUID.randomUUID().toString() +"some \\\",\\\"num\\\":102081}\",\n" +
                 "    \"millisecond\": 1000,\n" +
-                "    \"group\":\"test\"\n" +
+                "    \"group\":\""+ "test"+r.nextInt(100) +"\"\n" +
                 "}", JSON);
 
         Request request = new Request.Builder()

@@ -55,7 +55,7 @@ public class DelayhunterApplication {
 
     @Bean
     public DB db() throws KitDBException {
-        return DB.buildTransactionDB(dbDir,false);
+        return DB.buildTransactionDB(dbDir,true);
     }
 
     public static boolean isStandalone(){

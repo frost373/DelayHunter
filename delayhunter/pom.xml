@@ -10,7 +10,7 @@
     </parent>
     <groupId>top.thinkin</groupId>
     <artifactId>delayhunter</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.3-SNAPSHOT</version>
     <name>delayhunter</name>
     <description>Demo project for Spring Boot</description>
 
@@ -27,8 +27,16 @@
         <dependency>
             <groupId>top.thinkin.kitdb</groupId>
             <artifactId>raft</artifactId>
-            <version>0.2.3</version>
+            <version>0.2.5-SNAPSHOT</version>
         </dependency>
+
+        <!-- https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>4.2.2</version>
+        </dependency>
+
 
         <dependency>
             <groupId>cn.hutool</groupId>
@@ -42,6 +50,20 @@
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
+
+
+        <dependency>
+            <groupId>io.dropwizard.metrics</groupId>
+            <artifactId>metrics-core</artifactId>
+            <version>3.1.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.dropwizard.metrics</groupId>
+            <artifactId>metrics-core</artifactId>
+            <version>4.1.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

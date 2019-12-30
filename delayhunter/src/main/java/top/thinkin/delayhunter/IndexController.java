@@ -27,13 +27,60 @@ import java.util.stream.Collectors;
 @RestController
 @Slf4j
 public class IndexController {
-    private static ThreadPoolExecutor pool = new ThreadPoolExecutor(10, 10, 1000, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(10000), Executors.defaultThreadFactory(),new ThreadPoolExecutor.AbortPolicy());
+    private static ThreadPoolExecutor pool = new ThreadPoolExecutor(5, 5, 1000, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(20000), Executors.defaultThreadFactory(),new ThreadPoolExecutor.AbortPolicy());
+
+    ArrayBlockingQueue<Timer> queue = new ArrayBlockingQueue<Timer>(25000);
+
+    @PostConstruct
+    public void init() throws InterruptedException {
+        System.out.println("init......");
+        pool.submit(() -> {
+            ZSet zSet = db.getzSet();
+            RMap rmap =  db.getMap();
+            while (true) {
+                List<Timer> timers =   poll(200);
+                if(CollectionUtil.isEmpty(timers)){
+                    continue;
+                }
+                setTimers(timers, zSet, rmap);
+                for (Timer timer : timers) {
+                    timer.getTimerFluxSink().next(Kits.success("OK"));
+                    timer.getTimerFluxSink().complete();
+                }
+            }
+
+        });
 
 
+    }
 
 
+    public  synchronized  List<Timer> poll(int num) throws InterruptedException {
+        List<Timer> messages = new ArrayList<>(num);
+        int times = 0;
+        Timer messageF  =  queue.poll(500,TimeUnit.MILLISECONDS);
+        if(messageF == null){
+            return messages;
+        }
+        messages.add(messageF);
+        for (int i = 0; i < num; i++) {
+            Timer message  =  queue.poll();
 
+            if( times>=3){
+                break;
+            }
 
+            if(message == null){
+                times++;
+            }else{
+                messages.add(message);
+                times = 0;
+            }
+
+        }
+        return messages;
+
+    }
 
 
     @Autowired
@@ -48,6 +95,31 @@ public class IndexController {
         }
     }
 
+    @PostMapping("/add2")
+    public Mono<Message> add2(@RequestBody Timer timer){
+        leaderCheck();
+        Flux<Message> flux =  Flux.create(fluxSink-> {
+            timer.setTimerFluxSink(fluxSink);
+            queue.offer(timer);
+        });
+        return flux.single();
+    }
+
+
+    @PostMapping("/add3")
+    public String add3(@RequestBody Timer timer) throws KitDBException {
+        leaderCheck();
+        ZSet zSet =  db.getzSet();
+        RMap rmap =  db.getMap();
+        for (int i = 0; i < 10000; i++) {
+            db.startTran();
+            zSet.add(timer.getGroup(),timer.getId().getBytes(),System.currentTimeMillis()+timer.getMillisecond());
+            rmap.put(timer.getGroup(),timer.getId(),timer.getData().getBytes());
+            db.commitTX();
+        }
+
+        return "OK";
+    }
 
 
     @PostMapping("/add")
@@ -86,21 +158,7 @@ public class IndexController {
             ZSet zSet =  db.getzSet();
             RMap rmap =  db.getMap();
             try {
-                db.startTran();
-                Map<String, List<Timer>> groups =  timers.stream(). collect(Collectors.groupingBy(Timer::getGroup));
-                for(String key : groups.keySet()){
-                    List<ZSet.Entry> entryList = groups.get(key).stream().map(timer ->
-                                    new  ZSet.Entry(timer.millisecond,timer.id.getBytes()))
-                            .collect(Collectors.toList());
-
-                    zSet.add(key,entryList);
-                    Map<String, byte[]> map  =  groups.get(key).stream().collect(
-                            Collectors.toMap(Timer::getId,
-                                    timer -> timer.getData().getBytes(),
-                                    (key1, key2) -> key2));
-                    rmap.putMayTTL(key,-1,map);
-                }
-                db.commitTX();
+                setTimers(timers, zSet, rmap);
             } catch (Exception e) {
                 log.error("error",e);
                 try {
@@ -118,6 +176,24 @@ public class IndexController {
         }));
 
         return flux.single();
+    }
+
+    private void setTimers(@RequestBody List<Timer> timers, ZSet zSet, RMap rmap) throws KitDBException {
+        db.startTran();
+        Map<String, List<Timer>> groups =  timers.stream(). collect(Collectors.groupingBy(Timer::getGroup));
+        for(String key : groups.keySet()){
+            List<ZSet.Entry> entryList = groups.get(key).stream().map(timer ->
+                            new  ZSet.Entry(timer.millisecond,timer.id.getBytes()))
+                    .collect(Collectors.toList());
+
+            zSet.add(key,entryList);
+            Map<String, byte[]> map  =  groups.get(key).stream().collect(
+                    Collectors.toMap(Timer::getId,
+                            timer -> timer.getData().getBytes(),
+                            (key1, key2) -> key2));
+            rmap.putMayTTL(key,-1,map);
+        }
+        db.commitTX();
     }
 
 
