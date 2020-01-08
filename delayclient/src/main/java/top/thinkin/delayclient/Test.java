@@ -72,7 +72,7 @@ class Test {
                 MessageK message =  Jsons.readValue(response.body().string(),MessageK.class);
                 if(message.errno !=0){
                     log.error("error",Jsons.writeAsString(message));
-                }else {
+                }else if((message.errno ==0)){
                     requests.mark();
                 }
             }

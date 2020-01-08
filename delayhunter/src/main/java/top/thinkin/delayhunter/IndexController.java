@@ -32,26 +32,40 @@ public class IndexController {
     ArrayBlockingQueue<Timer> queue = new ArrayBlockingQueue<Timer>(25000);
 
     @PostConstruct
-    public void init() throws InterruptedException {
-        System.out.println("init......");
+    public void init() {
         pool.submit(() -> {
             ZSet zSet = db.getzSet();
             RMap rmap =  db.getMap();
             while (true) {
-                List<Timer> timers =   poll(200);
+                List<Timer> timers = null;
+                try {
+                    timers = poll(200);
+                } catch (Exception e) {
+                    log.error("poll error",e);
+                }
                 if(CollectionUtil.isEmpty(timers)){
                     continue;
                 }
-                setTimers(timers, zSet, rmap);
+                try {
+                    setTimers(timers, zSet, rmap);
+                } catch (Exception e) {
+                    log.error("Error",e);
+                    try {
+                        db.rollbackTX();
+                    } catch (KitDBException e1) {
+                        log.error("rollbackTX error",e1);
+                    }
+                    for (Timer timer : timers) {
+                        timer.getTimerFluxSink().error(e);
+                    }
+                    return;
+                }
                 for (Timer timer : timers) {
                     timer.getTimerFluxSink().next(Kits.success("OK"));
                     timer.getTimerFluxSink().complete();
                 }
             }
-
         });
-
-
     }
 
 
@@ -95,6 +109,11 @@ public class IndexController {
         }
     }
 
+    /**
+     * 通过WebFlux，服务端批量提交
+     * @param timer
+     * @return
+     */
     @PostMapping("/add2")
     public Mono<Message> add2(@RequestBody Timer timer){
         leaderCheck();
@@ -106,22 +125,11 @@ public class IndexController {
     }
 
 
-    @PostMapping("/add3")
-    public String add3(@RequestBody Timer timer) throws KitDBException {
-        leaderCheck();
-        ZSet zSet =  db.getzSet();
-        RMap rmap =  db.getMap();
-        for (int i = 0; i < 10000; i++) {
-            db.startTran();
-            zSet.add(timer.getGroup(),timer.getId().getBytes(),System.currentTimeMillis()+timer.getMillisecond());
-            rmap.put(timer.getGroup(),timer.getId(),timer.getData().getBytes());
-            db.commitTX();
-        }
-
-        return "OK";
-    }
-
-
+    /**
+     * 直接提交
+     * @param timer
+     * @return
+     */
     @PostMapping("/add")
     public Mono<Message> add(@RequestBody Timer timer){
         leaderCheck();
@@ -151,6 +159,11 @@ public class IndexController {
         return flux.single();
     }
 
+    /**
+     * 客户端批量提交
+     * @param timers
+     * @return
+     */
     @PostMapping("/adds")
     public Mono<Message> adds(@RequestBody List<Timer> timers){
         leaderCheck();
@@ -196,7 +209,12 @@ public class IndexController {
         db.commitTX();
     }
 
-
+    /**
+     * 获取到期的消息
+     * @param group
+     * @param limit
+     * @return
+     */
     @GetMapping("/pop")
     public Mono<Message> pop(String group, Integer limit) {
         leaderCheck();
@@ -237,7 +255,12 @@ public class IndexController {
         return flux.single();
     }
 
-
+    /**
+     * 查询到期的消息
+     * @param group
+     * @param limit
+     * @return
+     */
     @GetMapping("/query")
     public Mono<Message> query(String group, Integer limit) {
         leaderCheck();
@@ -302,30 +325,59 @@ public class IndexController {
         }
     }
 
-
+    /**
+     * 查询某个消息到期时间
+     * @param group
+     * @param id
+     * @return
+     * @throws KitDBException
+     */
     @GetMapping("/queryTime")
     public Long score( String group,String id) throws KitDBException {
         ZSet zSet =  db.getzSet();
         return zSet.score(group,id.getBytes());
     }
 
+    /**
+     * 查看leader（可以在任何节点）
+     * @param group
+     * @param id
+     * @return
+     * @throws KitDBException
+     */
     @GetMapping("/leader")
     public String leader( String group,String id) throws KitDBException {
         return kitRaft.getLeaderIP();
     }
 
+    /**
+     * 查看所有节点（只能在leader）
+     * @param group
+     * @param id
+     * @return
+     * @throws KitDBException
+     */
     @GetMapping("/getNodes")
     public List<String> getNodes( String group,String id) throws KitDBException {
         leaderCheck();
         return kitRaft.getNodes();
     }
 
+    /**
+     * 添加节点（只能在leader）
+     * @param node
+     * @throws KitDBException
+     */
     @GetMapping("/addNode")
     public void addNode( String node) throws KitDBException {
         leaderCheck();
         kitRaft.addNode(node);
     }
-
+    /**
+     * 移除节点（只能在leader）
+     * @param node
+     * @throws KitDBException
+     */
     @GetMapping("/removeNode")
     public void removeNode( String node) throws KitDBException {
         leaderCheck();
