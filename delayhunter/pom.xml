@@ -27,7 +27,7 @@
         <dependency>
             <groupId>top.thinkin.kitdb</groupId>
             <artifactId>raft</artifactId>
-            <version>0.2.5-SNAPSHOT</version>
+            <version>0.2.4</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp -->
