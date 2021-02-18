@@ -16,7 +16,7 @@
 
     <properties>
         <java.version>1.8</java.version>
-        <jackjson.version>2.10.1</jackjson.version>
+        <jackjson.version>2.12.1</jackjson.version>
 
     </properties>
 
